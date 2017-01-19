@@ -173,13 +173,13 @@ Parser.Ascii = class extends Parser { // Parses ASCII STL files
                 buffer.push(line.replace(/^solid\s*/i, '').trim());
             } else if ((/^facet normal\s+/i).exec(line)) {
                 buffer.push('facet');
-                var items = line.match(/\d+\.?\d*/gi) ?? [];
+                var items = line.match(/\d+\.?\d*/gi) || [];
                 buffer.push(...items.map(i => parseFloat(i || '0')))
             } else if ((/^outer loop$/i).exec(line)) {
                 buffer.push('loop');
             } else if ((/^vertex(\s+|$)/i).exec(line)) {
                 buffer.push('vertex');
-                var items = line.match(/\d+\.?\d*/gi) ?? [];
+                var items = line.match(/\d+\.?\d*/gi) || [];
                 buffer.push(...items.map(i => parseFloat(i || '0')))
                 buffer.push(false);
             }
