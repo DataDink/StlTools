@@ -1,7 +1,9 @@
 #StlReader.js
 -------------
 A forward-only STL document reader
+
 By DataDink (https://github.com/datadink)
+
 Supports: ASCII, Binary
 
 ##Usage:
