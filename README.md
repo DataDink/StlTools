@@ -8,12 +8,16 @@ Supports: ASCII, Binary
 
 ##Usage:
 ```javascript
+// Reading a file object
 var file = document.getElementById('file-input').files[0];
 StlReader.fromFile(file).then(fileReader => {...});
 
-var buffer = (new FileReader()).readAsArrayBuffer(file);
-var bufferReader = StlReader.fromBuffer(buffer);
+// Reading an ArrayBuffer
+(new FileReader()).onload = (buffer) => {
+  var bufferReader = StlReader.fromBuffer(buffer);
+}
 
+// Reading a DataView
 var view = new DataView(buffer, 0);
 var viewReader = StlReader.fromView(view);
 ```
