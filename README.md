@@ -13,9 +13,8 @@ var file = document.getElementById('file-input').files[0];
 StlReader.fromFile(file).then(fileReader => {...});
 
 // Reading an ArrayBuffer
-(new FileReader()).onload = (buffer) => {
-  var bufferReader = StlReader.fromBuffer(buffer);
-}
+var buffer = new ArrayBuffer(x);
+var bufferReader = StlReader.fromBuffer(buffer);
 
 // Reading a DataView
 var view = new DataView(buffer, 0);
