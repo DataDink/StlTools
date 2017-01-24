@@ -8,7 +8,7 @@
 //      var file = document.getElementById('file-input').files[0];                                      //
 //      StlReader.fromFile(file).then(reader => {...});                                                 //
 //                                                                                                      //
-//      var buffer = (new FileReader()).readAsArrayBuffer(file);                                        //
+//      var buffer = new ArrayBuffer(x);                                                                //
 //      var bufferReader = StlReader.fromBuffer(buffer);                                                //
 //                                                                                                      //
 //      var view = new DataView(buffer, 0);                                                             //
