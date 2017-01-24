@@ -22,21 +22,26 @@ var viewReader = StlReader.fromView(view);
 
 ```javascript
 StlReader.fromFile(file).then(reader => {
+  // Read each object in the file
   var object = reader.next();
   while(object !== false) {
     var objectName = object.name;
+    
+    // Read each facet in the object
     var facet = object.next();
-    console.log(objectName);
     while (facet !== false) {
       var facetNormal = facet.normal;
+      
+      // Read each face in the facet
       var face = facet.next();
-      console.log(facetNormal);
       while (face !== false) {
+      
+        // Read each vertex in the face
         var vertex = face.next();
         while (vertex !== false) {
           var vertexCoordinates = vertex.coordinates;
+          
           var vertex = face.next();
-          console.log(vertexCoordinates);
         }
         face = facet.next();
       }
