@@ -163,11 +163,11 @@ Parser.Ascii = class extends Parser { // Parses ASCII STL files
         }
         var readLine = () => {
             var next = readNext();
-            while ((next !== false
-                    && '\r\n'.indexOf(next) < 0)
-                    || line === '') {
-                line += next;
-                next = readNext();
+            while (next !== false && line.trim() === '') {
+                while (next !== false && '\r\n'.indexOf(next) < 0) {
+                    line += next;
+                    next = readNext();
+                }
             }
             var result = line.trim();
             line = '';
@@ -198,7 +198,7 @@ Parser.Ascii = class extends Parser { // Parses ASCII STL files
             buffer = [];
             return content;
         }
-        super(readLine);
+        super(parseLine);
     }
 }
 
