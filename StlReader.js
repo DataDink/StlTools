@@ -37,17 +37,51 @@
 //            var object = reader.next();                                                               //
 //        }                                                                                             //
 //      });                                                                                             //
+//                                                                                                      //
+//      -------------------------------------------------------------------------------------------     //
+//                                                                                                      //
+//      StlReader.fromFile(file).then(reader => {                                                       //
+//         var vert;                                                                                    //
+//         while (vert = reader.nextVert()) { console.log(JSON.stringify(vert)); }                      //
+//      });                                                                                             //
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export default class StlReader { // Forward-only STL Document reader
     constructor(parser) {
         this.type = 'file';
+
+        var solid = false;
         this.next = () => {
             var type = parser();
-            if (type === 'solid') { return new StlReader.Solid(parser); }
-            parser = () => { return false; }
-            return false;
-        }
+            if (type === 'solid') { return (solid = new StlReader.Solid(parser)); }
+            parser = () => { return (solid = false); }
+            return (solid = false);
+        };
+        var facet = false;
+        this.nextFacet = () => {
+          if (!solid && !this.next()) { return false; }
+          while (solid && !(facet = solid.next())) { this.next(); }
+          return facet;
+        };
+        var face = false;
+        this.nextFace = () => {
+          if (!facet && !this.nextFacet()) { return false; }
+          while (facet && !(face = facet.next())) { this.nextFacet(); }
+          return face;
+        };
+        var vert = false;
+        var coord = false;
+        this.nextVert = () => {
+          if (!face && !this.nextFace()) { return false; }
+          while (face && !(vert = face.next())) { this.nextFace(); }
+          coord = !vert ? false : [vert.x, vert.y, vert.z];
+          return vert;
+        };
+        this.nextCoord = () => {
+          if (!coord || !coord.length) { this.nextVert(); }
+          if (!vert) { return false; }
+          return coord.shift();
+        };
     }
 
     static fromFile(file) {
@@ -156,7 +190,7 @@ class Parser { // Forward-only reading parser
 
 Parser.Ascii = class extends Parser { // Parses ASCII STL files
     constructor(view) {
-        var line = 'solid ';
+        var line = '';
         var readNext = () => {
             if (view.position >= view.length) { return false; }
             return String.fromCharCode(view.getUint8());
@@ -178,7 +212,7 @@ Parser.Ascii = class extends Parser { // Parses ASCII STL files
             var line = readLine();
             if (line === false || (/^(endsolid|endfacet|endloop)(\s+|$)/i).exec(line)) {
                 buffer.push(false);
-            } else if ((/^solid\s+|$/i).exec(line)) {
+            } else if ((/^solid(\s+|$)/i).exec(line)) {
                 buffer.push('solid');
                 buffer.push(line.replace(/^solid\s*/i, '').trim());
             } else if ((/^facet normal\s+/i).exec(line)) {
@@ -189,9 +223,12 @@ Parser.Ascii = class extends Parser { // Parses ASCII STL files
                 buffer.push('loop');
             } else if ((/^vertex(\s+|$)/i).exec(line)) {
                 buffer.push('vertex');
-                var items = line.match(/\-?\d+\.?\d*/gi) || [];
+                var items = line.match(/\-?\d+\.?\d*/i) || [];
                 buffer.push(...items.map(i => parseFloat(i || '0')))
                 buffer.push(false);
+            } else {
+                buffer.push('solid');
+                buffer.push(line.trim());
             }
 
             var content = buffer;
