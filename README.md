@@ -54,3 +54,11 @@ StlReader.fromFile(file).then(reader => {
   }
 });
 ```
+
+-------------------------------------------------------------------------------------------
+
+```javascript
+StlReader.fromFile(file).then(reader => {
+  var vert;
+  while (vert = reader.nextVert()) { console.log(JSON.stringify(vert)); }
+});
