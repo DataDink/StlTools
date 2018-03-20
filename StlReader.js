@@ -1,295 +1,145 @@
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  StlReader.js                                                                                        //
-//      A forward-only STL document reader                                                              //
-//      By DataDink (https://github.com/datadink)                                                       //
-//  Supports: ASCII, Binary                                                                             //
-//                                                                                                      //
-//  Usage:                                                                                              //
-//      var file = document.getElementById('file-input').files[0];                                      //
-//      StlReader.fromFile(file).then(reader => {...});                                                 //
-//                                                                                                      //
-//      var buffer = new ArrayBuffer(x);                                                                //
-//      var bufferReader = StlReader.fromBuffer(buffer);                                                //
-//                                                                                                      //
-//      var view = new DataView(buffer, 0);                                                             //
-//      var viewReader = StlReader.fromView(view);                                                      //
-//                                                                                                      //
-//      -------------------------------------------------------------------------------------------     //
-//                                                                                                      //
-//      StlReader.fromFile(file).then(reader => {                                                       //
-//        var object = reader.next();                                                                   //
-//        while(object !== false) {                                                                     //
-//            var objectName = object.name;                                                             //
-//            var facet = object.next();                                                                //
-//            while (facet !== false) {                                                                 //
-//                var facetNormal = facet.normal;                                                       //
-//                var face = facet.next();                                                              //
-//                while (face !== false) {                                                              //
-//                    var vertex = face.next();                                                         //
-//                    while (vertex !== false) {                                                        //
-//                        var vertexCoordinates = vertex.coordinates;                                   //
-//                        var vertex = face.next();                                                     //
-//                    }                                                                                 //
-//                    face = facet.next();                                                              //
-//                }                                                                                     //
-//                var facet = object.next();                                                            //
-//            }                                                                                         //
-//            var object = reader.next();                                                               //
-//        }                                                                                             //
-//      });                                                                                             //
-//                                                                                                      //
-//      -------------------------------------------------------------------------------------------     //
-//                                                                                                      //
-//      StlReader.fromFile(file).then(reader => {                                                       //
-//         var vert;                                                                                    //
-//         while (vert = reader.nextVert()) { console.log(JSON.stringify(vert)); }                      //
-//      });                                                                                             //
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*******************************************************************************
+  Stl
 
-export default class StlReader { // Forward-only STL Document reader
-    constructor(parser) {
-        this.type = 'file';
+    It reads STL files (both ASCII and Binary)
+    ASCII is slow
+    Binary is fast
 
-        var solid = false;
-        this.next = () => {
-            var type = parser();
-            if (type === 'solid') { return (solid = new StlReader.Solid(parser)); }
-            parser = () => { return (solid = false); }
-            return (solid = false);
-        };
-        var facet = false;
-        this.nextFacet = () => {
-          if (!solid && !this.next()) { return false; }
-          while (solid && !(facet = solid.next())) { this.next(); }
-          return facet;
-        };
-        var face = false;
-        this.nextFace = () => {
-          if (!facet && !this.nextFacet()) { return false; }
-          while (facet && !(face = facet.next())) { this.nextFacet(); }
-          return face;
-        };
-        var vert = false;
-        var coord = false;
-        this.nextVert = () => {
-          if (!face && !this.nextFace()) { return false; }
-          while (face && !(vert = face.next())) { this.nextFace(); }
-          coord = !vert ? false : [vert.x, vert.y, vert.z];
-          return vert;
-        };
-        this.nextCoord = () => {
-          if (!coord || !coord.length) { this.nextVert(); }
-          if (!vert) { return false; }
-          return coord.shift();
-        };
-    }
+    Example 1:
 
-    static fromFile(file) {
-        return new Promise((next, error) => {
-          try {
-            var reader = new FileReader();
-            reader.onload = (e) => {
-              next(StlReader.fromBuffer(e.target.result));
-            }
-            reader.readAsArrayBuffer(file);
-          } catch (message) {
-            error(message);
-          }
+      var input = document.querySelector('input[type=file]');
+      input.addEventListener('change', i => {
+        var file = i.target.files[0];
+        Stl.fromFile(file).then(stl => {
+          console.log(stl.objects[0].facets.length);
         });
-    }
+      });
 
-    static fromBuffer(buffer) {
-        var view = new DataView(buffer, 0);
-        return StlReader.fromView(view);
-    }
+    Example 2:
 
-    static fromView(view) {
-        var reader = new DataViewReader(view, true);
-        var header = '';
-        while (reader.position < 6) {
-          header += String.fromCharCode(reader.getUint8()).toLowerCase();
-        }
+      var content = "solid whatever...";
+      var stl = Stl.fromString(content);
 
-        var parser = (header === 'solid ')
-            ? new Parser.Ascii(reader)
-            : new Parser.Binary(reader);
+*******************************************************************************/
 
-        return new StlReader(parser.next.bind(parser));
-    }
-}
-
-StlReader.Solid = class { // Solid (object) reader
-    constructor(parser) {
-        this.type = 'solid';
-        this.name = parser();
-        this.next = () => {
-            var type = parser();
-            if (type === 'facet') { return new StlReader.Facet(parser); }
-            this.next = () => { return false; }
-            return false;
-        }
-    }
-}
-
-StlReader.Facet = class { // Facet (multi-face) reader
-    constructor(parser) {
-        this.type = 'facet';
-        this.normal = {
-            i: parser(),
-            j: parser(),
-            k: parser()
-        }
-        this.next = () => {
-            var type = parser();
-            if (type === 'loop') { return new StlReader.Face(parser); }
-            this.next = () => { return false; }
-            return false;
-        }
-    }
-}
-
-StlReader.Face = class { // Face reader
-    constructor(parser) {
-        this.type = 'face';
-        this.next = () => {
-            var type = parser();
-            if (type === 'vertex') { return new StlReader.Vertex(parser); }
-            this.next = () => { return false; }
-            return false;
-        }
-    }
-}
-
-StlReader.Vertex = class { // Vertex reader
-    constructor(parser) {
-        this.type = 'vertex';
-        this.coordinates = {
-            x: parser(),
-            y: parser(),
-            z: parser()
-        }
-        parser(); // discard vertex closing false
-    }
-}
-
-class Parser { // Forward-only reading parser
-    constructor(reader) {
-        this.reader = reader;
-        this.buffer = [];
-    }
-
-    next() {
-        if (!this.buffer.length) { this.loadBuffer(); }
-        return this.buffer.shift();
-    }
-
-    loadBuffer() {
-        this.buffer.push(...this.reader());
-    }
-}
-
-Parser.Ascii = class extends Parser { // Parses ASCII STL files
-    constructor(view) {
-        var line = '';
-        var readNext = () => {
-            if (view.position >= view.length) { return false; }
-            return String.fromCharCode(view.getUint8());
-        }
-        var readLine = () => {
-            var next = readNext();
-            while (next !== false && line.trim() === '') {
-                while (next !== false && '\r\n'.indexOf(next) < 0) {
-                    line += next;
-                    next = readNext();
-                }
-            }
-            var result = line.trim();
-            line = '';
-            return result === '' ? false : result;
-        }
-        var parseLine = () => {
-            var buffer = [];
-            var line = readLine();
-            if (line === false || (/^(endsolid|endfacet|endloop)(\s+|$)/i).exec(line)) {
-                buffer.push(false);
-            } else if ((/^solid(\s+|$)/i).exec(line)) {
-                buffer.push('solid');
-                buffer.push(line.replace(/^solid\s*/i, '').trim());
-            } else if ((/^facet normal\s+/i).exec(line)) {
-                buffer.push('facet');
-                var items = line.match(/\-?\d+\.?\d*/gi) || [];
-                buffer.push(...items.map(i => parseFloat(i || '0')))
-            } else if ((/^outer loop$/i).exec(line)) {
-                buffer.push('loop');
-            } else if ((/^vertex(\s+|$)/i).exec(line)) {
-                buffer.push('vertex');
-                var items = line.match(/\-?\d+\.?\d*/i) || [];
-                buffer.push(...items.map(i => parseFloat(i || '0')))
-                buffer.push(false);
-            } else {
-                buffer.push('solid');
-                buffer.push(line.trim());
-            }
-
-            var content = buffer;
-            buffer = [];
-            return content;
-        }
-        super(parseLine);
-    }
-}
-
-Parser.Binary = class extends Parser { // Parses Binary STL files
-    constructor(view) {
-        const HeaderLength = 80;
-        const FacetLength = 50;
-
-        // Read & discard header
-        while (view.position < view.length && view.position < HeaderLength) { view.getUint16(); }
-        var facetCount = view.getUint32();
-
-        var buffer = ['solid', 'binary'];
-        var readFacet = () => {
-            if (facetCount == 0 || view.length - view.position < FacetLength) {
-                buffer.push(false); // closes solid & file
-            } else {
-                buffer.push('facet');
-                buffer.push(view.getFloat32(), view.getFloat32(), view.getFloat32());
-                buffer.push('loop');
-                for (var i = 0; i < 3; i++) {
-                    buffer.push('vertex');
-                    buffer.push(view.getFloat32(), view.getFloat32(), view.getFloat32());
-                    view.getUint16(); // Read & discard attribute
-                    buffer.push(false);
-                }
-                buffer.push(false); // closes loop
-                buffer.push(false); // closes facet
-            }
-
-            var content = buffer;
-            buffer = [];
-            return content;
+class Stl {
+  static fromFile(file) {
+    return new Promise((s, e) => {
+      var header = new FileReader();
+      header.onload = (h) => {
+        var isAscii = h.target.result.trim().startsWith('solid');
+        var reader = new FileReader();
+        reader.onload = (f) => {
+          var stl = isAscii
+            ? Stl.fromString(f.target.result)
+            : Stl.fromBuffer(f.target.result);
+          s(stl);
         };
+        if (isAscii) { reader.readAsText(file); }
+        else { reader.readAsArrayBuffer(file); }
+      };
 
-        super(readFacet);
-    }
+      var snippet = file.slice(0, Math.min(file.size, 100)); // need to read the header, length just needs to be enough to pick up encoding and the word "solid"
+      header.readAsText(snippet);
+    }).catch(e => console.error(e));
+  }
+
+  static fromString(content) {
+    return new Stl(new Stl.Parsers.Ascii(content));
+  }
+
+  static fromBuffer(buffer) {
+    var view = new DataView(buffer);
+    return Stl.fromView(view);
+  }
+
+  static fromView(view) {
+    return new Stl(new Stl.Parsers.Binary(view));
+  }
+
+  constructor(parser) {
+    this.objects = [new Stl.Object(parser)];
+  }
 }
 
-class DataViewReader {
-  constructor(view, littleEndian) {
-    var position = view.byteOffset;
-    function inc(x) { position += x; return position - x; }
-    this.getPosition = () => { return position; }
-    this.getLength = () => { return view.byteLength; }
-    this.getUint8 = () => { return view.getUint8(inc(1), littleEndian); }
-    this.getInt8 = () => { return view.getInt8(inc(1), littleEndian); }
-    this.getUint16 = () => { return view.getUint16(inc(2), littleEndian); }
-    this.getInt16 = () => { return view.getInt16(inc(2), littleEndian); }
-    this.getUint32 = () => { return view.getUint32(inc(4), littleEndian); }
-    this.getInt32 = () => { return view.getInt32(inc(4), littleEndian); }
-    this.getFloat32 = () => { return view.getFloat32(inc(4), littleEndian); }
-    this.getFloat64 = () => { return view.getFloat64(inc(8), littleEndian); }
+Stl.Object = class {
+  constructor(parser) {
+    this.facets = [];
+    while(parser.next()) {
+      this.facets.push(new Stl.Facet(parser));
+    }
   }
-  get position() { return this.getPosition(); }
-  get length() { return this.getLength(); }
+}
+
+Stl.Facet = class {
+  constructor(parser) {
+    this.normal = new Stl.Vert(parser);
+    this.verts = [];
+    for (var i = 0; i < 3; i++) {
+      parser.next();
+      this.verts.push(new Stl.Vert(parser));
+    }
+  }
+}
+
+Stl.Vert = class {
+  constructor(parser) {
+    this.x = parser.value.x;
+    this.y = parser.value.y;
+    this.z = parser.value.z;
+  }
+}
+
+Stl.Parsers = {
+  Ascii: class {
+    constructor(content) {
+      var buffer = content.split(/[\r\n]+/i);
+      var regex = /\-?\d+(\.\d+)?/g;
+
+      this.next = () => {
+        while (buffer.length) {
+          var line = buffer.shift().trim();
+          if (line.startsWith('facet') || line.startsWith('vertex')) {
+            var numbers = line.match(regex) || [];
+            this.value = {
+              x: parseFloat(numbers[0] || '0'),
+              y: parseFloat(numbers[1] || '0'),
+              z: parseFloat(numbers[2] || '0')
+            };
+            return true;
+          }
+        }
+        return false;
+      };
+    }
+  },
+
+  Binary: class {
+    constructor(view) {
+      var position = 84;
+      var countdown = view.getUint32(80, true);
+      var buffer = [];
+
+      this.next = () => {
+        var done = countdown == 0 || (!buffer.length && position >= view.bytesLength);
+        if (done) { return false; }
+
+        if (!buffer.length) {
+          for (var i = 0; i < 12; i++) {
+            buffer.push(position < view.bytesLength ? view.getFloat32(position, true) : 0);
+            position += 4;
+          }
+          position += 2;
+          countdown--;
+        }
+
+        this.value = {
+          x: buffer.length ? buffer.shift() : 0,
+          y: buffer.length ? buffer.shift() : 0,
+          z: buffer.length ? buffer.shift() : 0
+        };
+        return true;
+      }
+    }
+  }
 }
