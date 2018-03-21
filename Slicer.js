@@ -3,111 +3,66 @@ class Slicer {
     this.layers = {};
   }
 
-  static fromStl(stl, step) {
-    var slicer = new Slicer();
-    stl.objects[0].facets
-      .map(f => f.verts)
-      .forEach(verts => {
-        var edges = [[verts[0], verts[1]], [verts[0], verts[2]], [verts[1], verts[2]]];
-        var start = Math.min(verts[0].z, verts[1].z, verts[2].z);
-        var end = Math.max(verts[0].z, verts[1].z, verts[2].z);
-        var index = start - (start%step) + step;
-
-        while (index < end) {
-          var layer = slicer.layers[index] ? slicer.layers[index] : (slicer.layers[index] = new Slicer.Layer());
-          var coords = [];
-
-          edges.forEach(edge => {
-            if (edge[0].z < index && edge[1].z < index) { return; }
-            if (edge[0].z > index && edge[1].z > index) { return; }
-            var range = edge[1].z - edge[0].z;
-            var distance = index - edge[0].z;
-            var operand = distance/range;
-
-            coords.push({
-              x: (edge[1].x - edge[0].x) * operand + edge[0].x,
-              y: (edge[1].y - edge[0].y) * operand + edge[0].y,
-              z: index
-            });
-          });
-
-          while (coords.length) {
-            var segment = new Slicer.Segment();
-            segment.start = coords.shift();
-            segment.end = coords.shift();
-            layer.segments.push(segment);
-          }
-
-          index += step;
-        }
-      });
-
-      return slicer;
+  static fromStl(stl, interval) {
+    var layers = Slicer.Utilities.sliceLayers(stl, interval);
+    return layers;
   }
+}
 
-  toSvg(style) {
-    var svgs = [];
-    var layers = Object.keys(this.layers).map(k => parseFloat(k)).sort((a, b) => a-b);
+Slicer.Utilities = {
+  measure: function(a, b) {
+    return Math.sqrt(Math.pow(b.x-a.x)+Math.pow(b.y-a.y));
+  },
 
-    layers.forEach(index => {
-      var layer = this.layers[index];
-      var segments = Array.from(layer.segments);
-      var regions = [];
-      var region = [];
+  sliceLayers: function(stl, interval) {
+    var layers = {};
+    stl.objects[0].facets.forEach(facet => {
+      var edges = Slicer.Utilities.getEdges(facet);
+      var start = Math.min(facet.verts[0].z, facet.verts[1].z, facet.verts[2].z);
+      var end = Math.max(facet.verts[0].z, facet.verts[1].z, facet.verts[2].z);
+      var index = start - (start%interval);
+      while (index < start) { index += interval; }
 
-      while (segments.length) {
-        if (!region.length) { region.unshift(segments.pop()); }
-        var prev = region[0];
+      while (index < end) {
+        var coords = [];
 
-        var connection = segments.findIndex(p =>
-          (p.start.x == prev.start.x && p.start.y == prev.start.y)
-          || (p.start.x == prev.end.x && p.start.y == prev.end.y)
-          || (p.end.x == prev.end.x && p.end.y == prev.end.y)
-        );
+        edges.forEach(edge => {
+          if (edge[0].z < index && edge[1].z < index) { return; }
+          if (edge[0].z > index && edge[1].z > index) { return; }
+          coords.push(Slicer.Utilities.sliceEdge(edge, index));
+        });
+        var segment = Slicer.Utilities.getSegment(coords[0], coords[1], coords[2]);
+        var layer = layers[index] || (layers[index] = []);
+        layer.push({a: segment[0], b: segment[1], z: index});
 
-        if (connection < 0) {
-          if (region.length > 1) { regions.push(region); }
-          region = [];
-        } else {
-          var next = segments[connection];
-          segments.splice(next, 1);
-          region.unshift(next);
-        }
-
-        svgs.push(regions);
+        index += interval;
       }
-
-      var reduce = (key, method) =>
-        svgs.reduce((svga, svgv) =>
-          svgv.reduce((rega, regv) =>
-            regv.reduce((sega, segv) =>
-              Math[method](sega, segv.start[key], segv.end[key]),
-              0
-            ), 0
-          ), 0
-        );
-
-      var left = reduce('x', 'min');
-      var right = reduce('x', 'max');
-      var top = reduce('y', 'min');
-      var bottom = reduce('y', 'max');
-
-      return svgs.map(data => {
-
-      });
     });
-  }
-}
+    return layers;
+  },
 
-Slicer.Layer = class {
-  constructor() {
-    this.segments = [];
-  }
-}
+  sliceEdge: function(edge, height) {
+    var range = edge[1].z - edge[0].z;
+    var distance = height - edge[0].z;
+    var operand = distance/range;
+    return {
+      x: ((edge[1].x - edge[0].x) * operand + edge[0].x) || 0,
+      y: ((edge[1].y - edge[0].y) * operand + edge[0].y) || 0,
+      z: height
+    };
+  },
 
-Slicer.Segment = class {
-  constructor() {
-    this.start = {};
-    this.end = {};
+  getEdges: function(facet) {
+    return [[facet.verts[0], facet.verts[1]], [facet.verts[0], facet.verts[2]], [facet.verts[1], facet.verts[2]]];
+  },
+
+  getSegment: function(a, b, c) {
+    if (!c) { return [a, b]; }
+    var x = {a: a, b: b, m: Slicer.Utilities.measure(a, b)};
+    var y = {a: a, b: c, m: Slicer.Utilities.measure(a, c)};
+    var z = {a: b, b: c, m: Slicer.Utilities.measure(b, c)};
+    return x.m >= y.m && x.m >= z.m
+      ? [x.a, x.b] : y.m >= x.m && y.m >= z.m
+      ? [y.a, y.b] : [z.a, z.b];
   }
 }
