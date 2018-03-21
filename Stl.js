@@ -121,12 +121,12 @@ Stl.Parsers = {
       var buffer = [];
 
       this.next = () => {
-        var done = countdown == 0 || (!buffer.length && position >= view.bytesLength);
+        var done = countdown == 0 || (!buffer.length && position >= view.byteLength);
         if (done) { return false; }
 
         if (!buffer.length) {
           for (var i = 0; i < 12; i++) {
-            buffer.push(position < view.bytesLength ? view.getFloat32(position, true) : 0);
+            buffer.push(position < view.byteLength ? view.getFloat32(position, true) : 0);
             position += 4;
           }
           position += 2;
