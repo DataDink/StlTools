@@ -8,6 +8,7 @@ Supports: ASCII, Binary
 
 ## Usage:
 
+Example 1:
 ```javascript
   var input = document.querySelector('input[type=file]');
   input.addEventListener('change', i => {
@@ -18,6 +19,7 @@ Supports: ASCII, Binary
   });  
 ```
 
+Example 2:
 ```javascript
   var content = "solid whatever...";
   var stl = Stl.fromString(content);
