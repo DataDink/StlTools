@@ -27,14 +27,16 @@ Slice.Segment = class {
 Slice.Utilities = class {
   static getSegments(stl, step) {
     var layers = {};
+    var precision = 0; // For fixing floating point rounding errors
+    while (step * Math.pow(10, precision) % 1 !== 0) { precision++; }
+
     stl.objects[0].facets
       .map(f => f.verts)
       .forEach(verts => {
-        var edges = [[verts[0], verts[1]], [verts[0], verts[2]], [verts[1], verts[2]]];
+        var edges = [[verts[0], verts[1]], [verts[1], verts[2]], [verts[2], verts[0]]];
         var start = Math.min(verts[0].z, verts[1].z, verts[2].z);
         var end = Math.max(verts[0].z, verts[1].z, verts[2].z);
-        var index = start - (start%step);
-        while (index < start) { index += step; }
+        var index = Slice.Utilities.fixRoundingErrors(start - (start%step), precision);
 
         while (index < end) {
           var layer = layers[index] ? layers[index] : (layers[index] = []);
@@ -50,9 +52,9 @@ Slice.Utilities = class {
             var operand = distance/range;
 
             coords.push(new Slice.Vert(
-              x: (top.x - bottom.x) * operand + bottom.x,
-              y: (top.y - bottom.y) * operand + bottom.y,
-              z: index
+              (((top.x - bottom.x) * operand) || 0) + bottom.x,
+              (((top.y - bottom.y) * operand) || 0) + bottom.y,
+              index
             ));
           });
 
@@ -72,9 +74,9 @@ Slice.Utilities = class {
             ));
           }
 
-          segments.forEach(layer.push.bind(layer));
+          layer.push.apply(layer, segments);
 
-          index += step;
+          index = Slice.Utilities.fixRoundingErrors(index + step, precision);
         }
       });
     return layers;
@@ -91,28 +93,28 @@ Slice.Utilities = class {
       while (layer.length) {
         if (!region.length) {
           var init = layer.shift();
-          region.push(init[0]);
-          region.push(init[1]);
+          region.push(init.v1);
+          region.push(init.v2);
         }
 
         var connection = -1;
-        for (var i = 0; connection < 0 && i < 2 && region.reverse(); i++) {
+        for (var i = 0; connection < 0 && i < 2; i++) {
           var connection = layer.findIndex(s => s.connects(region[0]));
+          if (connection < 0) { region.reverse(); }
         }
 
         if (connection < 0) {
           if (!region[0].matches(region[region.length - 1])) {
             region.push(region[0]);
           }
-          if (regions.length > 3) {
+          if (region.length > 3) {
             regions.push(region);
           }
           region = [];
         } else {
           var segment = layer.splice(connection, 1)[0];
-          [segment.v1, segment.v2].forEach(vert => {
-            if (!vert.matches(region[0])) { region.unshift(vert); }
-          });
+          var vert = [segment.v1, segment.v2].find(v => !v.matches(region[0]));
+          if (vert) { region.unshift(vert); }
         }
       }
 
@@ -120,5 +122,10 @@ Slice.Utilities = class {
     });
 
     return layers;
+  }
+
+  static fixRoundingErrors(value, precision) {
+    var factor = Math.pow(10, precision);
+    return Math.round(value * factor) / factor;
   }
 }
