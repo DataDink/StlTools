@@ -18,12 +18,12 @@
       Stl.fromFile(file).then(stl => {
         var endStl = new Date().valueOf();
         var startSlice = endStl;
-        var slice = Slice.fromStl(stl, .2);
+        var slice = Slice.fromStl(stl, 1);
         var endSlice = new Date().valueOf();
 
         var left = 0; var right = 0; var tops = 0; var bottom = 0;
-        var layers = Object.keys(slice.layers).map(l => parseFloat(l)).sort((a,b) => a-b);
-        layers.forEach(l => slice.layers[l].forEach(r => r.forEach(v => {
+        var layers = Object.keys(slice).map(l => parseFloat(l)).sort((a,b) => a-b);
+        layers.forEach(l => slice[l].forEach(r => r.forEach(v => {
           left = Math.floor(Math.min(left, v.x));
           right = Math.ceil(Math.max(right, v.x));
           tops = Math.floor(Math.min(tops, v.y));
@@ -32,7 +32,7 @@
         var width = Math.ceil((right - left) * scale);
         var height =  Math.ceil((bottom - tops) * scale);
         layers.forEach(layer => {
-          var regions = slice.layers[layer];
+          var regions = slice[layer];
           var container = document.createElement('div');
           var svg = document.createElement('svg');
           svg.setAttribute('width', width);
