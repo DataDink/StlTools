@@ -9,6 +9,7 @@
 <body>
   <input type="file" />
   <script>
+    var layerHeight = .1;
     var scale = 5;
     var input = document.querySelector('input[type=file]');
     input.addEventListener('change', i => {
@@ -18,7 +19,7 @@
       Stl.fromFile(file).then(stl => {
         var endStl = new Date().valueOf();
         var startSlice = endStl;
-        var slice = Slice.fromStl(stl, 1);
+        var slice = Slice.fromStl(stl, layerHeight);
         var endSlice = new Date().valueOf();
 
         var left = 0; var right = 0; var tops = 0; var bottom = 0;

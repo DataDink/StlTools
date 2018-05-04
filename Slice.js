@@ -1,126 +1,122 @@
 class Slice {
   static fromStl(stl, step) {
-    var facets = stl.objects[0].facets.map(f => Slice.Facet.fromVerts(f.verts));
-    var segments = facets
-      .map(f => f.slice(step))
-      .reduce((a,v) => a.concat(v), []);
-    var layers = Slice.Utilities.calcLayers(segments);
+    var layers = Slice.Utils.sliceStl(stl, step);
     var slice = new Slice();
-    Object.keys(layers).forEach(k => slice[k] = layers[k]);
+    Object.keys(layers)
+      .filter(z => layers[z] && layers[z].length)
+      .forEach(z => slice[z] = layers[z]);
     return slice;
   }
 }
 
-Slice.Vert = class {
-  constructor(x,y,z) {
-    this.x=x;
-    this.y=y;
-    this.z=z;
-  }
-  static fromVert(vert) {
-    return new Slice.Vert(vert.x, vert.y, vert.z);
-  }
-  compare(vert) {
-    return this.x==vert.x && this.y==vert.y  && this.z==vert.z;
-  }
-}
+Slice.Utils = class {
 
-Slice.Edge = class {
-  constructor(from,to) {
-    this.from = Slice.Vert.fromVert(from);
-    this.to = Slice.Vert.fromVert(to);
-  }
-  compare(edge) {
-    return [edge.from,edge.to].every(v1 => [this.from,this.to].some(v2 => v1.compare(v2)));
-  }
-  flip() {
-    return new Slice.Edge(this.to, this.from);
-  }
-  slice(step) {
-    var flat = this.from.z === this.to.z;
-    if (flat && !this.from.z%step) { return [this.from, this.to]; }
-    if (flat) { return []; }
-    var from = Math.min(this.from.z, this.to.z);
-    var to = Math.max(this.from.z, this.to.z);
-    from = Slice.Utilities.round(from + (from < 0 ? -(from%step) : (step - (from%step))));
-    var verts = [];
-    for (var z = from; z <= to; z += step) {
-      var index = (z-this.from.z)/(this.to.z-this.from.z);
-      verts.push(new Slice.Vert(
-        Slice.Utilities.round((this.to.x-this.from.x)*index+this.from.x),
-        Slice.Utilities.round((this.to.y-this.from.y)*index+this.from.y),
-        z
-      ));
+  static sliceStl(stl, step) {
+    var facets = Slice.Utils.getFacets(stl);
+    var zheights = facets.reduce((a,f) => a.concat(f.map(v => v.z)), []);
+    var zrange = {
+      from: Slice.Utils.offset(Math.min.apply(Math, zheights), step),
+      to: Math.max.apply(Math, zheights)
     }
-    return verts;
-  }
-}
 
-Slice.Facet = class {
-  constructor(v1,v2,v3) {
-    this.v1 = Slice.Vert.fromVert(v1);
-    this.v2 = Slice.Vert.fromVert(v2);
-    this.v3 = Slice.Vert.fromVert(v3);
-  }
-  static fromVerts(verts) {
-    return new Slice.Facet(verts[0],verts[1],verts[2]);
-  }
-  get edges() { return [
-    new Slice.Edge(this.v1, this.v2),
-    new Slice.Edge(this.v2, this.v3),
-    new Slice.Edge(this.v3, this.v1)
-  ]; }
-  slice(step) {
-    var verts = Slice.Utilities.unique(this.edges
-      .map(e => e.slice(step))
-      .reduce((a,v) => a.concat(v), []),
-      (a,b) => a.compare(b)
-    );
-    var segments = Slice.Utilities
-      .unique(verts.map(v => v.z))
-      .map(z => verts.filter(v => v.z===z))
-      .map(layer => layer.slice(0,-1)
-        .map((v,i) => new Slice.Edge(v, layer[i+1]))
-      ).reduce((a,v) => a.concat(v), []);
-    return Slice.Utilities.unique(segments, (a,b) => a.compare(b));
-  }
-}
-
-Slice.Utilities = class {
-  static calcLayers(edges) {
     var layers = {};
-    Slice.Utilities.unique(edges.map(e => e.from.z))
-      .forEach(z => {
-        var layer = layers[z] = [];
-        var segments = edges.filter(e => e.from.z === z);
-        while (segments.length) {
-          var shape = [segments.pop()];
-          while (segments.length) {
-            var ends = {from:shape[0].from, to:shape[shape.length-1].to};
-            var right = segments.findIndex(e => [e.from,e.to].some(v => v.compare(ends.to)));
-            if (right >= 0) {
-              shape.push(segments[right].from.compare(ends.to) ? segments.splice(right,1)[0] : segments.splice(right,1)[0].flip());
-            }
-            var left = segments.findIndex(e => [e.from,e.to].some(v => v.compare(ends.from)));
-            if (left >= 0) {
-              shape.unshift(segments[left].to.compare(ends.from) ? segments.splice(left,1)[0] : segments.splice(left,1)[0].flip());
-            }
-            if (left < 0 && right < 0) { break; }
-          }
-          var verts = shape.map(e => [e.from,e.to]).reduce((a,v) => a.concat(v), []);
-          layer.push(Slice.Utilities.unique(verts, (a,b) => a.compare(b)));
-        }
-      });
+    for (var z = zrange.from; z <= zrange.to; z += step) {
+      layers[z] = Slice.Utils.sliceLayer(facets, z);
+    }
     return layers;
   }
 
-  static round(number) { // Floating point correction
-    const places = 9;
-    return Math.round(Math.pow(10,places)*number)/Math.pow(10,places);
+  static getFacets(stl) {
+    return stl.objects[0].facets
+      .map(f => f.verts.map(v => { return {
+        x:Slice.Utils.round(v.x),
+        y:Slice.Utils.round(v.y),
+        z:Slice.Utils.round(v.z)
+      }}))
+      .filter(f => f[0].z !== f[1].z || f[0].z !== f[2].z);
   }
 
-  static unique(array, compare) {
-    compare = compare || ((a,b) => a==b);
-    return array.reduce((a,v) => a.some(i => compare(i,v)) ? a : a.concat(v), []);
+  static sliceLayer(facets, z) {
+    facets = facets.filter(f => f.some(v => v.z <= z) && f.some(v => v.z >= z));
+    var shapes = [];
+    while (facets.length) {
+      shapes.push(Slice.Utils.sliceShape(facets, facets.pop(), z));
+    }
+    return shapes.filter(s => s.length > 2);
+  }
+
+  static sliceShape(facets, facet, z) {
+    var edges = [[facet[0],facet[1]],[facet[1],facet[2]],[facet[2],facet[0]]]
+      .filter(e => e.some(v => v.z <= z) && e.some(v => v.z >= z) && !e.every(v => v.z === z));
+    var shape = Slice.Utils.sliceEdges(edges, z);
+    var sibling = Slice.Utils.extractSibling(edges, facets);
+    while (sibling) {
+      var segment = Slice.Utils.sliceShape(facets, sibling, z);
+      shape = Slice.Utils.connect(shape, segment);
+      sibling = Slice.Utils.extractSibling(edges, facets);
+    }
+    return Slice.Utils.cleanShape(shape);
+  }
+
+  static cleanShape(shape) {
+    return shape.reduce((a,v1) =>
+      Slice.Utils.compareVerts(a[a.length-1], v1)
+        ? a
+        : a.concat([v1])
+    , []);
+  }
+
+  static sliceEdges(edges, z) {
+    return edges
+      .map(e => Slice.Utils.sliceEdge(e, z))
+      .reduce((a,v1) => a.some(v2 => Slice.Utils.compareVerts(v1,v2)) ? a : a.concat([v1]), []);
+  }
+
+  static sliceEdge(edge, z) {
+    var index = Slice.Utils.round((z - edge[0].z) / (edge[1].z - edge[0].z));
+    return {
+      x: Slice.Utils.round((edge[1].x-edge[0].x)*index+edge[0].x),
+      y: Slice.Utils.round((edge[1].y-edge[0].y)*index+edge[0].y),
+      z: z
+    };
+  }
+
+  static extractSibling(edges, facets) {
+    var index = facets.findIndex(f =>
+      edges.some(e =>
+        e.every(v1 =>
+          f.some(v2 =>
+            Slice.Utils.compareVerts(v1,v2)
+          )
+        )
+      )
+    );
+    if (index >= 0) { return facets.splice(index,1)[0]; }
+  }
+
+  static connect(a, b) {
+    for (var i = 0; i < 2; i++) {
+      if (Slice.Utils.compareVerts(a[0], b[b.length-1])) { return b.concat(a); }
+      if (Slice.Utils.compareVerts(a[a.length-1], b[0])) { return a.concat(b); }
+      b.reverse();
+    }
+    return a;
+  }
+
+  static compareEdges(a,b) {
+    return a&&b&&a.every(v1 => b.some(v2 => Slice.Utils.compareVert(v1,v2)));
+  }
+
+  static compareVerts(a,b) {
+    return a&&b&&a.x===b.x&&a.y===b.y&&a.z===b.z;
+  }
+
+  static round(value) {
+    const precision = 9;
+    return Math.round(Math.pow(10,precision)*value)/Math.pow(10,precision);
+  }
+
+  static offset(value, to) {
+    return Slice.Utils.round(Math.floor(value/to)*to);
   }
 }
