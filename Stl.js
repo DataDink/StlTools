@@ -13,7 +13,14 @@
 
 (function() {
 
-  class Stl extends Array {
+  class Base extends Array {
+    constructor() {
+      super();
+      this.constructor = Array.prototype.constructor;
+    }
+  }
+
+  class Stl extends Base {
     constructor(reader) {
       super();
       var solid;
@@ -28,7 +35,7 @@
     }
   };
 
-  Stl.Solid = class extends Array {
+  Stl.Solid = class extends Base {
     constructor(reader) {
       super();
       var facet;
@@ -39,7 +46,7 @@
     }
   }
 
-  Stl.Solid.Facet = class extends Array {
+  Stl.Solid.Facet = class extends Base {
     constructor(reader) {
       super();
       var vert;
@@ -50,7 +57,7 @@
     }
   }
 
-  Stl.Solid.Facet.Vert = class extends Array {
+  Stl.Solid.Facet.Vert = class extends Base {
     constructor(reader) {
       super(reader.x, reader.y, reader.z);
       this.x = reader.x;
