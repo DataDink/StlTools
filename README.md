@@ -43,8 +43,8 @@ Supports: ASCII, Binary
     datadink.io.Stl.fromBlob(e.target.files[0])
       .then(stl => {
         console.log('Solids:', stl.length);
-        console.log('Facets:', stl.flat(1).length);
-        console.log('Verts:', stl.flat(2).length);
+        console.log('Facets:', stl.flat(1).length - stl.length);
+        console.log('Verts:', stl.flat(2).length - stl.flat(1).length - stl.length);
       });
-  });  
+  });
 ```
