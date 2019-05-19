@@ -60,9 +60,17 @@
   Stl.Solid.Facet.Vert = class extends Base {
     constructor(reader) {
       super(reader.x, reader.y, reader.z);
-      this.x = reader.x;
-      this.y = reader.y;
-      this.z = reader.z;
+    }
+
+    get x() { return this[0]; }
+    set x(v) { this[0] = v; }
+    get y() { return this[1]; }
+    set y(v) { this[1] = v; }
+    get z() { return this[2]; }
+    set z(v) { this[2] = v; }
+
+    compare(vert) {
+      return vert.every((v,i) => this[i] === v);
     }
   }
 
