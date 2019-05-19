@@ -85,6 +85,10 @@
       this.y = parser.content.y;
       this.z = parser.content.z;
     }
+
+    compare(vert) {
+      return vert.x == this.x && vert.y == this.y && vert.z == this.z;
+    }
   }
 
   StlReader.Parsers = {
@@ -114,7 +118,7 @@
 
     Ascii: class {
       constructor(content) {
-        var parser = /\d+(\.\d+)?(e-\d+)?/gi;
+        var parser = /\d+(\.\d+)?(e[-+]\d+)?/gi;
         var buffer = Array.from(content.match(/[^\s].+[^\s]/g));
         this.next = () => {
           while (buffer.length) { // skip junk
@@ -132,9 +136,9 @@
             if (line.startsWith('facet') || line.startsWith('vertex')) {
               var values = line.match(parser);
               this.content = {
-                x: parseFloat(values[0] || '0'),
-                y: parseFloat(values[1] || '0'),
-                z: parseFloat(values[2] || '0')
+                x: normalize(parseFloat(values[0] || '0')),
+                y: normalize(parseFloat(values[1] || '0')),
+                z: normalize(parseFloat(values[2] || '0'))
               };
               return true;
             }
@@ -184,9 +188,9 @@
 
       static readVert(view) {
         var vert = {
-          x: view.getFloat32(view.position, true),
-          y: view.getFloat32(view.position+4, true),
-          z: view.getFloat32(view.position+8, true)
+          x: normalize(view.getFloat32(view.position, true)),
+          y: normalize(view.getFloat32(view.position+4, true)),
+          z: normalize(view.getFloat32(view.position+8, true))
         };
         view.position += 12;
         return vert;
@@ -208,6 +212,13 @@
         });
       }
     }
+  }
+
+  // because floating point
+  const precision = (10**15);
+  function normalize(value) {
+    var index = 10**Math.max(0, Math.floor(Math.log10(Math.abs(value))) + 1);
+    return Math.floor(value/index*precision)/precision*index;
   }
 
   this.datadink = this.datadink || {};
