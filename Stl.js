@@ -22,11 +22,7 @@
 
   class Stl extends Base {
     constructor(reader) {
-      super();
-      var solid;
-      while (solid = reader.nextSolid()) {
-        this.push(new Stl.Solid(solid));
-      }
+      super(new Stl.Solid(reader.nextSolid()));
     }
 
     static fromBlob(blob) {
@@ -38,8 +34,8 @@
   Stl.Solid = class extends Base {
     constructor(reader) {
       super();
-      var facet;
       this.name = reader.name;
+      var facet;
       while (facet = reader.nextFacet()) {
         this.push(new Stl.Solid.Facet(facet));
       }
@@ -48,13 +44,18 @@
 
   Stl.Solid.Facet = class extends Base {
     constructor(reader) {
-      super();
-      var vert;
-      this.normal = reader.normal;
-      while (vert = reader.nextVert()) {
-        this.push(new Stl.Solid.Facet.Vert(vert));
-      }
+      super(
+        new Stl.Solid.Facet.Vert(reader.nextVert()),
+        new Stl.Solid.Facet.Vert(reader.nextVert()),
+        new Stl.Solid.Facet.Vert(reader.nextVert())
+      );
     }
+
+    get edges() { return [
+      [this[0], this[1]],
+      [this[1], this[2]],
+      [this[2], this[0]],
+    ]; }
   }
 
   Stl.Solid.Facet.Vert = class extends Base {
@@ -63,11 +64,8 @@
     }
 
     get x() { return this[0]; }
-    set x(v) { this[0] = v; }
     get y() { return this[1]; }
-    set y(v) { this[1] = v; }
     get z() { return this[2]; }
-    set z(v) { this[2] = v; }
 
     compare(vert) {
       return vert.every((v,i) => this[i] === v);
