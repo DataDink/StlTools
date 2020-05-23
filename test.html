@@ -1,19 +1,54 @@
 <html>
   <head>
     <script src="StlReader.js"></script>
-    <script src="Stl.js"></script>
+    <script src="Slice.js"></script>
+    <style>
+      canvas {
+        display: block;
+        border: 1px solid red;
+      }
+    </style>
   </head>
 <body>
-  <input type="file" />
+  <input type="file" /><br />
   <script>
+  const scale = 10;
   var input = document.querySelector('input[type=file]');
   input.addEventListener('change', e => {
-    datadink.io.Stl.fromBlob(e.target.files[0])
-      .then(stl => {
-        console.log('Solids:', stl.length);
-        console.log('Facets:', stl.flat(1).length);
-        console.log('Verts:', stl.flat(2).length);
-      });
+    datadink.io.StlReader.fromBlob(
+      e.target.files[0]
+    ).then(reader => {
+      var slice = new datadink.Slice(reader, .5);
+      console.log(slice);
+      var bounds = {
+        left: -slice.bounds.left,
+        back: -slice.bounds.back,
+        width: (slice.bounds.right-slice.bounds.left),
+        depth: (slice.bounds.front-slice.bounds.back)
+      };
+      slice.layers
+        .forEach(layer => {
+          var canvas = document.body.appendChild(document.createElement('canvas'));
+          canvas.width = bounds.width*scale;
+          canvas.height = bounds.depth*scale;
+          canvas.style.width = '100vh';
+          canvas.style.height = '100vh';
+          var drawing = canvas.getContext('2d');
+          drawing.scale(scale, scale);
+          drawing.lineWidth = bounds.width/1000;
+
+          layer.regions.forEach(region => {
+            drawing.beginPath();
+            drawing.moveTo(region[0].x+bounds.left, region[0].y+bounds.back);
+            region.forEach(v =>
+              drawing.lineTo(v.x+bounds.left, v.y+bounds.back)
+            );
+            drawing.stroke();
+          });
+        });
+    }).catch(e =>
+      console.error(e)
+    )
   });
   </script>
 </body>

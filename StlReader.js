@@ -95,13 +95,12 @@
     Picker: class {
       static pick(blob) {
         return new Promise((resolve, reject) => {
-          if (blob.size < 80) { reject('file too short'); }
-          var header = blob.slice(0,80);
-          var headerReader = new FileReader();
-          headerReader.onload = e => {
-            var content = e.target.result;
-            var isAscii = content.match(/^solid\s[^\0-\10\14-\37]{74}/);
-            if (isAscii) {
+          if (blob.size < 84) { reject('rejected: short file') }
+          var reader = new FileReader();
+          reader.onload = e => {
+            var length = (new DataView(e.target.result, 80)).getUint32(0, true) * 50 + 84;
+            var looksLikeAscii = (length !== blob.size);
+            if (looksLikeAscii) {
               StlReader.Parsers.Ascii.fromBlob(blob)
                 .then(resolve)
                 .catch(reject);
@@ -110,8 +109,8 @@
                 .then(resolve)
                 .catch(reject);
             }
-          };
-          headerReader.readAsText(header);
+          }
+          reader.readAsArrayBuffer(blob);
         });
       }
     },
