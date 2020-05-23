@@ -43,8 +43,30 @@ Supports: ASCII, Binary
     datadink.io.Stl.fromBlob(e.target.files[0])
       .then(stl => {
         console.log('Solids:', stl.length);
-        console.log('Facets:', stl.flat(1).length);
-        console.log('Verts:', stl.flat(2).length);
+        console.log('Facets:', stl.flatMap(s => s).length);
+        console.log('Verts:', stl.flatMap(s => s.flatMap(f => f)).length);
       });
+  });
+```
+
+# Slice.js
+-------------
+It slices STL files (like for a 3d printer)
+
+By DataDink (https://github.com/datadink)
+
+## Usage:
+
+```javascript
+  var input = document.querySelector('input[type=file]');
+  input.addEventListener('change', e => {
+    var layerHeight = 0.2;
+    var reader = datadink.io.StlReader.fromBlob(e.target.files[0])
+    var slice = new datadink.Slice(reader, layerHeight);
+    console.log("Seconds: ", slice.mapTime + slice.layersTime);
+    console.log("Report: ", slice.report);
+    console.log("Size: ", slice.bounds);
+    console.log("Layers: ", slice.layers.length);
+    console.log("Regions: ", slice.layers.flatMap(l => l.regions).length);
   });
 ```
