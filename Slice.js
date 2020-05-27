@@ -7,7 +7,7 @@
 
   Usage:
 
-  var slice = new datadink.Slice()
+  var slice = new datadink.Slice(reader, layerHeight[, precision])
 
 *******************************************************************************/
 
