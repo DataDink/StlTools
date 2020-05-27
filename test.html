@@ -4,7 +4,15 @@
     <script src="Slice.js"></script>
     <style>
       canvas {
-        display: block;
+        position: absolute;
+        left: 0px; top: 0px;
+        display: inline-block;
+        border: 1px solid blue;
+        width: auto; height: 75vh;
+      }
+      div {
+        position: relative;
+        height: 75vh;
         border: 1px solid red;
       }
     </style>
@@ -28,21 +36,21 @@
       };
       slice.layers
         .forEach(layer => {
-          var canvas = document.body.appendChild(document.createElement('canvas'));
-          canvas.width = bounds.width*scale;
-          canvas.height = bounds.depth*scale;
-          canvas.style.width = '100vh';
-          canvas.style.height = '100vh';
-          var drawing = canvas.getContext('2d');
-          drawing.scale(scale, scale);
-          drawing.lineWidth = bounds.width/1000;
-
+          var container = document.body.appendChild(document.createElement('div'));
           layer.regions.forEach(region => {
+            var canvas = container.appendChild(document.createElement('canvas'));
+            canvas.width = bounds.width*scale;
+            canvas.height = bounds.depth*scale;
+            var drawing = canvas.getContext('2d');
+            drawing.scale(scale, scale);
+            drawing.lineWidth = bounds.width/1000;
+
             drawing.beginPath();
-            drawing.moveTo(region[0].x+bounds.left, region[0].y+bounds.back);
-            region.forEach(v =>
+            drawing.moveTo(region.path[0].x+bounds.left, region.path[0].y+bounds.back);
+            region.path.forEach(v =>
               drawing.lineTo(v.x+bounds.left, v.y+bounds.back)
             );
+            drawing.lineTo(region.path[0].x+bounds.left, region.path[0].y+bounds.back);
             drawing.stroke();
           });
         });

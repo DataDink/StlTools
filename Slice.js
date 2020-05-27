@@ -14,17 +14,20 @@
 (function() {
   class Slice {
     constructor(reader, step = 0.2, precision = 6) {
+
       var mstart = new Date().valueOf();
       var mapdata = Slice.map(reader, step, precision);
       this.mapTime = (new Date().valueOf() - mstart) / 1000;
       this.report = mapdata.report;
       this.map = mapdata.map;
-      var bstart = new Date().valueOf();
-      this.bounds = Slice.bounds(this.map);
-      this.boundsTime = (new Date().valueOf() - bstart) / 1000;
+
       var lstart = new Date().valueOf();
       this.layers = Slice.layers(this.map);
       this.layersTime = (new Date().valueOf() - lstart) / 1000;
+
+      var bstart = new Date().valueOf();
+      this.bounds = Slice.bounds(this);
+      this.boundsTime = (new Date().valueOf() - bstart) / 1000;
     }
 
     static map(reader, step, precision) {
@@ -64,12 +67,12 @@
         }
       }
       return {
-        report: Slice.clean(map),
+        report: Slice.cleanMap(map),
         map: map
       };
     }
 
-    static clean(map) {
+    static cleanMap(map) {
       var debug = {
         branches: [],
         terminations: [],
@@ -93,30 +96,8 @@
       return debug;
     }
 
-    static bounds(map) { // Itterates all verts to determine the bounds of the entire slice
-      return Array.from(Object.keys(map))
-        .map(z => parseFloat(z))
-        .reduce((az,z) => {
-          az.bottom = 'bottom' in az ? Math.min(az.bottom, z) : z;
-          az.top = 'top' in az ? Math.max(az.top, z) : z;
-          return Array.from(Object.keys(map[z]))
-            .map(x => parseFloat(x))
-            .reduce((ax,x) => {
-              ax.left = 'left' in ax ? Math.min(ax.left, x) : x;
-              ax.right = 'right' in ax ? Math.max(ax.right, x) : x;
-              return Array.from(Object.keys(map[z][x]))
-                .map(y => parseFloat(y))
-                .reduce((ay,y) => {
-                  ay.back = 'back' in ay ? Math.min(ay.back, y) : y;
-                  ay.front = 'front' in ay ? Math.max(ay.front, y) : y;
-                  return ay;
-                }, ax);
-            }, az);
-        }, {});
-    }
-
     static layers(map) {
-      return Array.from(Object.keys(map))
+      var layers = Array.from(Object.keys(map))
         .map(k => parseFloat(k))
         .sort((a,b) => a>b?1:-1)
         .map(z => { return {
@@ -127,13 +108,26 @@
               .flatMap(x => Array.from(Object.keys(map[z][x]))
                 .map(k => { return {x: x, y: parseFloat(k)}; })
               ).reduce((regions, start) => {
-                if (regions.some(r => r.some(v => v.x==start.x&&v.y==start.y))) {
+                if (regions.some(r => r.path.some(v => v.x==start.x&&v.y==start.y))) {
                   return regions;
                 }
-                regions.push(...Slice.trace(map[z], [], start));
+                regions.push(...Slice.trace(map[z], [], start)
+                  .map(p => { return {
+                    path: p,
+                    bounds: p.reduce((b,v) => {
+                      b.left = ('left' in b)?Math.min(b.left, v.x):v.x;
+                      b.right = ('right' in b)?Math.max(b.right, v.x):v.x;
+                      b.back = ('back' in b)?Math.min(b.back, v.y):v.y;
+                      b.front = ('front' in b)?Math.max(b.front, v.y):v.y;
+                      return b;
+                    }, {})
+                  }; })
+                );
                 return regions;
               }, [])
         };});
+        Slice.cleanLayers(layers);
+        return layers;
     }
 
     static trace(map, path, start) {
@@ -153,6 +147,39 @@
         while(path[0].x!=next.x||path[0].y!=next.y) { path.shift(); }
       } // Otherwise this is a broken loop so leave the whole thing
       return branches.filter(b => b.length);
+    }
+
+    static cleanLayers(layers) {
+      var regionFilter = (region, i, regions) =>
+        region.path.some(v =>
+          !regions.some((r,ii) =>
+            ii>i&&r.path.some(vv =>
+              v.x==vv.x&&v.y==vv.y
+            )
+          )
+        );
+      layers.forEach(layer => {
+        layer.regions = layer.regions
+          .sort((a,b) => a.path.length>b.path.length?-1:1)
+          .filter(regionFilter)
+          .sort((a,b) => a.path.length>b.path.length?1:-1)
+          .filter(regionFilter);
+      });
+    }
+
+    static bounds(slice) { // Itterates all verts to determine the bounds of the entire slice
+      return slice.layers
+        .reduce((bounds, layer) => {
+          bounds.bottom = ('bottom' in bounds)?Math.min(bounds.bottom, layer.layer):layer.layer;
+          bounds.top = ('top' in bounds)?Math.max(bounds.top, layer.layer):layer.layer;
+          layer.regions.forEach(region => {
+            bounds.left = ('left' in bounds)?Math.min(bounds.left, region.bounds.left):region.bounds.left;
+            bounds.right = ('right' in bounds)?Math.max(bounds.right, region.bounds.right):region.bounds.right;
+            bounds.back = ('back' in bounds)?Math.min(bounds.back, region.bounds.back):region.bounds.back;
+            bounds.front = ('front' in bounds)?Math.max(bounds.front, region.bounds.front):region.bounds.front;
+          });
+          return bounds;
+        }, {});
     }
   }
 
