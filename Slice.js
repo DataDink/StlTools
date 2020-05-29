@@ -131,7 +131,7 @@
     }
 
     static trace(map, path, start) {
-      var branches = [path = Array.from(path)], available;
+      var branches = [path = Array.from(path||[])], available;
       var next=start, last=path[path.length-1]||start;
       do {
         path.push(next);

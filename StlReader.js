@@ -48,52 +48,50 @@
     }
 
     static fromBlob(blob) {
-      return StlReader.Parsers.Picker.pick(blob)
+      return StlReader.Parsers.pick(blob)
         .then(parser => new StlReader(parser));
     }
-  }
 
-  StlReader.Solid = class extends BaseReader {
-    constructor(parser) {
-      var config = {
-        parser: parser,
-        deplete: current => { while (current.nextVert()) {} },
-        create: () => new StlReader.Solid.Facet(parser)
-      };
-      super(config);
-      this.name = parser.content.name;
-      this.nextFacet = () => config.next();
+    static Solid = class extends BaseReader {
+      constructor(parser) {
+        var config = {
+          parser: parser,
+          deplete: current => { while (current.nextVert()) {} },
+          create: () => new StlReader.Solid.Facet(parser)
+        };
+        super(config);
+        this.name = parser.content.name;
+        this.nextFacet = () => config.next();
+      }
+
+      static Facet = class extends BaseReader {
+        constructor(parser) {
+          var config = {
+            parser: parser,
+            deplete: () => { },
+            create: () => new StlReader.Solid.Facet.Vert(parser)
+          };
+          super(config);
+          this.normal = parser.content;
+          this.nextVert = () => config.next();
+        }
+
+        static Vert = class {
+          constructor(parser) {
+            this.x = parser.content.x;
+            this.y = parser.content.y;
+            this.z = parser.content.z;
+          }
+
+          compare(vert) {
+            return vert.x == this.x && vert.y == this.y && vert.z == this.z;
+          }
+        }
+      }
     }
-  }
 
-  StlReader.Solid.Facet = class extends BaseReader {
-    constructor(parser) {
-      var config = {
-        parser: parser,
-        deplete: () => { },
-        create: () => new StlReader.Solid.Facet.Vert(parser)
-      };
-      super(config);
-      this.normal = parser.content;
-      this.nextVert = () => config.next();
-    }
-  }
-
-  StlReader.Solid.Facet.Vert = class {
-    constructor(parser) {
-      this.x = parser.content.x;
-      this.y = parser.content.y;
-      this.z = parser.content.z;
-    }
-
-    compare(vert) {
-      return vert.x == this.x && vert.y == this.y && vert.z == this.z;
-    }
-  }
-
-  StlReader.Parsers = {
-    Picker: class {
-      static pick(blob) {
+    static Parsers = {
+      pick: (blob) => {
         return new Promise((resolve, reject) => {
           if (blob.size < 84) { reject('rejected: short file') }
           var reader = new FileReader();
@@ -112,103 +110,92 @@
           }
           reader.readAsArrayBuffer(blob);
         });
-      }
-    },
+      },
 
-    Ascii: class {
-      constructor(content) {
-        var parser = /\d+(\.\d+)?(e[-+]\d+)?/gi;
-        var buffer = Array.from(content.match(/[^\s].+[^\s]/g));
-        this.next = () => {
-          while (buffer.length) { // skip junk
-            var line = buffer.shift().trim();
-            if (line.startsWith('endsolid')) { return false; }
-            if (line.startsWith('endfacet')) { return false; }
+      Ascii: class {
+        constructor(content) {
+          var parser = /\d+(\.\d+)?(e[-+]\d+)?/gi;
+          var buffer = Array.from(content.match(/[^\s].+[^\s]/g));
+          this.next = () => {
+            while (buffer.length) { // skip junk
+              var line = buffer.shift().trim();
+              if (line.startsWith('endsolid')) { return false; }
+              if (line.startsWith('endfacet')) { return false; }
 
-            if (line.startsWith('solid')) {
-              this.content = {
-                name: line.match(/^solid\s+(.+$)/)[1]
-              };
-              return true;
+              if (line.startsWith('solid')) {
+                this.content = {
+                  name: line.match(/^solid\s+(.+$)/)[1]
+                };
+                return true;
+              }
+
+              if (line.startsWith('facet') || line.startsWith('vertex')) {
+                var values = line.match(parser);
+                this.content = {
+                  x: normalize(parseFloat(values[0] || '0')),
+                  y: normalize(parseFloat(values[1] || '0')),
+                  z: normalize(parseFloat(values[2] || '0'))
+                };
+                return true;
+              }
             }
-
-            if (line.startsWith('facet') || line.startsWith('vertex')) {
-              var values = line.match(parser);
-              this.content = {
-                x: normalize(parseFloat(values[0] || '0')),
-                y: normalize(parseFloat(values[1] || '0')),
-                z: normalize(parseFloat(values[2] || '0'))
-              };
-              return true;
-            }
-          }
-          return false;
-        };
-      }
-
-      static fromBlob(blob) {
-        return new Promise((resolve, reject) => {
-          var reader = new FileReader();
-          reader.onload = e => {
-            resolve(new StlReader.Parsers.Ascii(e.target.result));
+            return false;
           };
-          reader.readAsText(blob);
-        });
-      }
-    },
+        }
+      },
 
-    Binary: class {
-      constructor(buffer, header) {
-        var view = new DataView(buffer, 80);
-        var vertCount = view.getUint32(0, true) * 3;
-        view.position = 4;
-
-        var inSolid = false, inFacet = false, inVert = false, vertIndex = 0;
-        this.next = () => {
-          if (vertIndex >= vertCount) { return false; }
-          if (!inSolid) {
-            var name = ((header||'').match(/^(solid\s)?([^\0-\10\14-\37]+)/)||[])[2]||'';
-            this.content = { name: name };
-            return (inSolid = true);
-          }
-          if (!inFacet) {
+      Binary: class {
+        constructor(buffer, header) {
+          var view = new DataView(buffer, 80);
+          var vertCount = view.getUint32(0, true) * 3;
+          view.position = 4;
+          var inSolid = false, inFacet = false, inVert = false, vertIndex = 0;
+          this.next = () => {
+            if (vertIndex >= vertCount) { return false; }
+            if (!inSolid) {
+             var name = ((header||'').match(/^(solid\s)?([^\0-\10\14-\37]+)/)||[])[2]||'';
+             this.content = { name: name };
+             return (inSolid = true);
+            }
+            if (!inFacet) {
+             this.content = StlReader.Parsers.Binary.readVert(view);
+             return (inFacet = inVert = true);
+            }
+            if (!inVert) {
+             view.position += 2;
+             return (inFacet = false);
+            }
             this.content = StlReader.Parsers.Binary.readVert(view);
-            return (inFacet = inVert = true);
-          }
-          if (!inVert) {
-            view.position += 2;
-            return (inFacet = false);
-          }
-          this.content = StlReader.Parsers.Binary.readVert(view);
-          if (++vertIndex % 3 == 0) { inVert = false; }
-          return true;
-        };
-      }
-
-      static readVert(view) {
-        var vert = {
-          x: normalize(view.getFloat32(view.position, true)),
-          y: normalize(view.getFloat32(view.position+4, true)),
-          z: normalize(view.getFloat32(view.position+8, true))
-        };
-        view.position += 12;
-        return vert;
-      }
-
-      static fromBlob(blob) {
-        return new Promise((resolve, reject) => {
-          var header = blob.slice(0,80);
-          var headerReader = new FileReader();
-          headerReader.onload = e => {
-            var headerContent = e.target.result;
-            var reader = new FileReader();
-            reader.onload = e => {
-              resolve(new StlReader.Parsers.Binary(e.target.result, headerContent));
-            };
-            reader.readAsArrayBuffer(blob);
+            if (++vertIndex % 3 == 0) { inVert = false; }
+            return true;
           };
-          headerReader.readAsText(header);
-        });
+        }
+
+        static readVert(view) {
+          var vert = {
+            x: normalize(view.getFloat32(view.position, true)),
+            y: normalize(view.getFloat32(view.position+4, true)),
+            z: normalize(view.getFloat32(view.position+8, true))
+          };
+          view.position += 12;
+          return vert;
+        }
+
+        static fromBlob(blob) {
+          return new Promise((resolve, reject) => {
+            var header = blob.slice(0,80);
+            var headerReader = new FileReader();
+            headerReader.onload = e => {
+              var headerContent = e.target.result;
+              var reader = new FileReader();
+              reader.onload = e => {
+                resolve(new StlReader.Parsers.Binary(e.target.result, headerContent));
+              };
+              reader.readAsArrayBuffer(blob);
+            };
+            headerReader.readAsText(header);
+          });
+        }
       }
     }
   }

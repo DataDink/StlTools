@@ -6,8 +6,7 @@
 
   Usage:
 
-  datadink.io.Stl.fromBlob(file)
-    .then(data => console.log(data));
+  var stl = new datadink.Stl(reader);
 
 *******************************************************************************/
 
@@ -25,54 +24,47 @@
       super(new Stl.Solid(reader.nextSolid()));
     }
 
-    static fromBlob(blob) {
-      return datadink.io.StlReader.fromBlob(blob)
-        .then(reader => new Stl(reader));
+    static Solid = class extends Base {
+      constructor(reader) {
+        super();
+        this.name = reader.name;
+        var facet;
+        while (facet = reader.nextFacet()) {
+          this.push(new Stl.Solid.Facet(facet));
+        }
+      }
+
+      static Facet = class extends Base {
+        constructor(reader) {
+          super(
+            new Stl.Solid.Facet.Vert(reader.nextVert()),
+            new Stl.Solid.Facet.Vert(reader.nextVert()),
+            new Stl.Solid.Facet.Vert(reader.nextVert())
+          );
+        }
+        get edges() { return [
+          [this[0], this[1]],
+          [this[1], this[2]],
+          [this[2], this[0]],
+        ]; }
+
+        static Vert = class extends Base {
+          constructor(reader) {
+            super(reader.x, reader.y, reader.z);
+          }
+
+          get x() { return this[0]; }
+          get y() { return this[1]; }
+          get z() { return this[2]; }
+
+          compare(vert) {
+            return vert.every((v,i) => this[i] === v);
+          }
+        }
+      }
     }
   };
 
-  Stl.Solid = class extends Base {
-    constructor(reader) {
-      super();
-      this.name = reader.name;
-      var facet;
-      while (facet = reader.nextFacet()) {
-        this.push(new Stl.Solid.Facet(facet));
-      }
-    }
-  }
-
-  Stl.Solid.Facet = class extends Base {
-    constructor(reader) {
-      super(
-        new Stl.Solid.Facet.Vert(reader.nextVert()),
-        new Stl.Solid.Facet.Vert(reader.nextVert()),
-        new Stl.Solid.Facet.Vert(reader.nextVert())
-      );
-    }
-
-    get edges() { return [
-      [this[0], this[1]],
-      [this[1], this[2]],
-      [this[2], this[0]],
-    ]; }
-  }
-
-  Stl.Solid.Facet.Vert = class extends Base {
-    constructor(reader) {
-      super(reader.x, reader.y, reader.z);
-    }
-
-    get x() { return this[0]; }
-    get y() { return this[1]; }
-    get z() { return this[2]; }
-
-    compare(vert) {
-      return vert.every((v,i) => this[i] === v);
-    }
-  }
-
   this.datadink = this.datadink || {};
-  this.datadink.io = this.datadink.io || {};
-  this.datadink.io.Stl = Stl;
+  this.datadink.Stl = Stl;
 })();

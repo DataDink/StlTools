@@ -1,6 +1,6 @@
 # StlReader.js
 -------------
-It reads STL files
+It parses STL files
 
 By DataDink (https://github.com/datadink)
 
@@ -29,19 +29,20 @@ Supports: ASCII, Binary
 
 # Stl.js
 -------------
-It reads STL files
+It loads an STL file onto a data model
 
 By DataDink (https://github.com/datadink)
 
-Supports: ASCII, Binary
+Via StlReader
 
 ## Usage:
 
 ```javascript
   var input = document.querySelector('input[type=file]');
   input.addEventListener('change', e => {
-    datadink.io.Stl.fromBlob(e.target.files[0])
-      .then(stl => {
+    datadink.io.StlReader.fromBlob(e.target.files[0])
+      .then(reader => {
+        var stl = new datadink.Stl(reader);
         console.log('Solids:', stl.length);
         console.log('Facets:', stl.flatMap(s => s).length);
         console.log('Verts:', stl.flatMap(s => s.flatMap(f => f)).length);
@@ -55,18 +56,22 @@ It slices STL files (like for a 3d printer)
 
 By DataDink (https://github.com/datadink)
 
+Via StlReader
+
 ## Usage:
 
 ```javascript
   var input = document.querySelector('input[type=file]');
   input.addEventListener('change', e => {
-    var layerHeight = 0.2;
-    var reader = datadink.io.StlReader.fromBlob(e.target.files[0])
-    var slice = new datadink.Slice(reader, layerHeight);
-    console.log("Seconds: ", slice.mapTime + slice.layersTime);
-    console.log("Report: ", slice.report);
-    console.log("Size: ", slice.bounds);
-    console.log("Layers: ", slice.layers.length);
-    console.log("Regions: ", slice.layers.flatMap(l => l.regions).length);
+    datadink.io.StlReader.fromBlob(e.target.files[0])
+      .then(reader => {
+        var layerHeight = 0.2;
+        var slice = new datadink.Slice(reader, layerHeight);
+        console.log("Seconds: ", slice.mapTime + slice.layersTime);
+        console.log("Report: ", slice.report);
+        console.log("Size: ", slice.bounds);
+        console.log("Layers: ", slice.layers.length);
+        console.log("Regions: ", slice.layers.flatMap(l => l.regions).length);
+      });
   });
 ```
