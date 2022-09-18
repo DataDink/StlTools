@@ -1,0 +1,33 @@
+{
+  "name": "stltools",
+  "version": "1.0.0",
+  "description": "tools for working with STLs",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "jest": {
+    "testEnvironment": "jsdom"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DataDink/StlTools.git"
+  },
+  "keywords": [
+    "stl",
+    "3d",
+    "cnc",
+    "javascript"
+  ],
+  "author": "DataDink",
+  "license": "Unlicense",
+  "bugs": {
+    "url": "https://github.com/DataDink/StlTools/issues"
+  },
+  "homepage": "https://github.com/DataDink/StlTools#readme",
+  "devDependencies": {
+    "jest": "^28.1.3",
+    "jest-environment-jsdom": "^28.1.3"
+  }
+}
